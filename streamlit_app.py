@@ -28,7 +28,7 @@ if audio_file is not None:
         audio = speech.RecognitionAudio(content=audio_bytes)
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-            sample_rate_hertz=16000,
+            sample_rate_hertz=16000,  # Ensure this matches the uploaded file's sample rate
             language_code="en-US",
         )
 
@@ -48,16 +48,18 @@ if audio_file is not None:
             transcription = transcribe_audio(audio_file)
             st.write("Transcription:")
             st.write(transcription)
+            # Save the transcription to session state for later use
+            st.session_state.transcription = transcription
         except Exception as e:
             st.error(f"Error during transcription: {e}")
 
     # Analyze the feedback for sentiment (feedback analysis)
     if st.button("Analyze Feedback"):
-        if 'transcription' in locals() and transcription:
+        if 'transcription' in st.session_state and st.session_state.transcription:
             try:
                 # Use Gemini to analyze sentiment of the transcription (e.g., feedback analysis)
                 model = genai.GenerativeModel('gemini-1.5-flash')
-                prompt = f"Analyze the following customer support feedback and provide a sentiment analysis:\n\n{transcription}"
+                prompt = f"Analyze the following customer support feedback and provide a sentiment analysis:\n\n{st.session_state.transcription}"
                 response = model.generate_content(prompt)
                 
                 # Display sentiment analysis
