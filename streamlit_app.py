@@ -1,151 +1,72 @@
 import streamlit as st
-import pandas as pd
-import math
-from pathlib import Path
+import google.generativeai as genai
+from google.cloud import speech_v1p1beta1 as speech
+import io
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# Configure the API key securely from Streamlit's secrets
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Set up Google Cloud Speech-to-Text client
+client = speech.SpeechClient()
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# Streamlit App UI
+st.title("Customer Support Call Analysis")
+st.write("Record and analyze customer support calls. Get transcription and feedback analysis.")
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# Audio file upload for customer support call
+audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav", "mp3"])
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+if audio_file is not None:
+    st.audio(audio_file, format="audio/wav")
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+    # Function to transcribe the audio using Google Speech-to-Text
+    def transcribe_audio(file):
+        # Convert audio file to bytes
+        audio_bytes = file.read()
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
+        # Prepare the audio input for Speech-to-Text
+        audio = speech.RecognitionAudio(content=audio_bytes)
+        config = speech.RecognitionConfig(
+            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            sample_rate_hertz=16000,
+            language_code="en-US",
         )
+
+        # Perform the transcription
+        response = client.recognize(config=config, audio=audio)
+
+        # Extract the transcription from the response
+        transcription = ""
+        for result in response.results:
+            transcription += result.alternatives[0].transcript + "\n"
+
+        return transcription
+
+    # Transcribe the uploaded audio
+    if st.button("Transcribe Call"):
+        try:
+            transcription = transcribe_audio(audio_file)
+            st.write("Transcription:")
+            st.write(transcription)
+        except Exception as e:
+            st.error(f"Error during transcription: {e}")
+
+    # Analyze the feedback for sentiment (feedback analysis)
+    if st.button("Analyze Feedback"):
+        if 'transcription' in locals() and transcription:
+            try:
+                # Use Gemini to analyze sentiment of the transcription (e.g., feedback analysis)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                prompt = f"Analyze the following customer support feedback and provide a sentiment analysis:\n\n{transcription}"
+                response = model.generate_content(prompt)
+                
+                # Display sentiment analysis
+                st.write("Feedback Sentiment Analysis:")
+                st.write(response.text)
+            except Exception as e:
+                st.error(f"Error during feedback analysis: {e}")
+        else:
+            st.warning("Please transcribe a call first.")
+
+else:
+    st.info("Upload a customer support call audio file to start.")
