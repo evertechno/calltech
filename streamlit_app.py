@@ -3,7 +3,6 @@ import speech_recognition as sr
 import io
 import logging
 import google.generativeai as genai
-from pydub import AudioSegment
 
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
@@ -16,7 +15,7 @@ st.title("Customer Support Call Analysis")
 st.write("Record and analyze customer support calls. Get transcription and feedback analysis.")
 
 # Audio file upload for customer support call
-audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav", "mp3", "flac"])
+audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav"])
 
 # Debugging: Print file details
 if audio_file is not None:
@@ -25,30 +24,14 @@ if audio_file is not None:
     
     st.audio(audio_file, format="audio/wav")
 
-    # Function to convert audio to WAV if necessary
-    def convert_to_wav(audio_bytes, format):
-        if format == 'mp3':
-            audio = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
-        elif format == 'flac':
-            audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format='flac')
-        else:
-            audio = AudioSegment.from_wav(io.BytesIO(audio_bytes))
-        wav_io = io.BytesIO()
-        audio.export(wav_io, format='wav')
-        wav_io.seek(0)
-        return wav_io
-
     # Function to transcribe the audio using SpeechRecognition
     def transcribe_audio(file):
         recognizer = sr.Recognizer()
 
-        # Convert audio file to a WAV file in memory
-        audio_bytes = file.read()
-        wav_audio = convert_to_wav(audio_bytes, file.type.split('/')[1])
-
-        # Convert the WAV file to a format that SpeechRecognition can work with
-        with sr.AudioFile(wav_audio) as source:
-            audio = recognizer.record(source)
+        # Convert the WAV file into an audio source
+        with io.BytesIO(file.read()) as audio_file_io:
+            with sr.AudioFile(audio_file_io) as source:
+                audio = recognizer.record(source)
 
         try:
             # Use Google Web Speech API to transcribe audio
