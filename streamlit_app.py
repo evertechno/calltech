@@ -1,24 +1,20 @@
 import streamlit as st
-import google.generativeai as genai
-from google.cloud import speech_v1p1beta1 as speech
+import whisper
 import io
 import logging
 
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
 
-# Configure the API key securely from Streamlit's secrets
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-
-# Set up Google Cloud Speech-to-Text client
-client = speech.SpeechClient()
+# Load the Whisper model (choose small, medium, or large depending on your needs)
+model = whisper.load_model("base")  # You can use "small", "medium", or "large" models for better accuracy
 
 # Streamlit App UI
 st.title("Customer Support Call Analysis")
 st.write("Record and analyze customer support calls. Get transcription and feedback analysis.")
 
 # Audio file upload for customer support call
-audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav", "mp3"])
+audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav", "mp3", "flac"])
 
 # Debugging: Print file details
 if audio_file is not None:
@@ -27,36 +23,21 @@ if audio_file is not None:
 
     st.audio(audio_file, format="audio/wav")
 
-    # Function to transcribe the audio using Google Speech-to-Text
+    # Function to transcribe the audio using Whisper
     def transcribe_audio(file):
         # Convert audio file to bytes
         audio_bytes = file.read()
 
-        # Prepare the audio input for Speech-to-Text
-        audio = speech.RecognitionAudio(content=audio_bytes)
-        
-        # Attempt to determine the correct encoding based on the file type
-        encoding = speech.RecognitionConfig.AudioEncoding.LINEAR16  # Default encoding
-        if file.name.endswith("mp3"):
-            encoding = speech.RecognitionConfig.AudioEncoding.MP3
-        elif file.name.endswith("wav"):
-            encoding = speech.RecognitionConfig.AudioEncoding.LINEAR16
-
-        config = speech.RecognitionConfig(
-            encoding=encoding,
-            sample_rate_hertz=16000,  # Ensure this matches the uploaded file's sample rate
-            language_code="en-US",
-        )
+        # Save the file temporarily for Whisper processing
+        with open("temp_audio_file", "wb") as temp_file:
+            temp_file.write(audio_bytes)
 
         try:
-            # Perform the transcription
-            response = client.recognize(config=config, audio=audio)
+            # Use Whisper to transcribe the audio file
+            result = model.transcribe("temp_audio_file")
 
-            # Extract the transcription from the response
-            transcription = ""
-            for result in response.results:
-                transcription += result.alternatives[0].transcript + "\n"
-
+            # Get the transcription text
+            transcription = result["text"]
             return transcription
         except Exception as e:
             st.error(f"Error during transcription: {e}")
@@ -79,14 +60,13 @@ if audio_file is not None:
     if st.button("Analyze Feedback"):
         if 'transcription' in st.session_state and st.session_state.transcription:
             try:
-                # Use Gemini to analyze sentiment of the transcription (e.g., feedback analysis)
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                prompt = f"Analyze the following customer support feedback and provide a sentiment analysis:\n\n{st.session_state.transcription}"
-                response = model.generate_content(prompt)
+                # Perform a simple sentiment analysis (you can replace this with a more sophisticated analysis)
+                feedback = st.session_state.transcription
+                sentiment = "Positive" if "good" in feedback.lower() else "Negative"
                 
                 # Display sentiment analysis
                 st.write("Feedback Sentiment Analysis:")
-                st.write(response.text)
+                st.write(f"Sentiment: {sentiment}")
             except Exception as e:
                 st.error(f"Error during feedback analysis: {e}")
                 logging.error(f"Error during feedback analysis: {e}")
