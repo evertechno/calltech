@@ -14,17 +14,23 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 st.title("Customer Support Call Analysis")
 st.write("Record and analyze customer support calls. Get transcription and feedback analysis.")
 
+# Limit file size to 200MB and allow only WAV format
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
+
 # Audio file upload for customer support call (only WAV files allowed)
 audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav"])
 
-# Ensure that only WAV files are allowed
+# Ensure that only WAV files are allowed and check for file size
 if audio_file is not None:
     # Check if the file is of type WAV
     if audio_file.type != "audio/wav":
         st.error("Only WAV files are allowed. Please upload a valid WAV file.")
+    # Check if the file size exceeds 200MB
+    elif len(audio_file.getvalue()) > MAX_FILE_SIZE:
+        st.error("The file is too large. Please upload a file smaller than 200MB.")
     else:
         st.write(f"Audio File Name: {audio_file.name}")
-        st.write(f"File Size: {len(audio_file.getvalue())} bytes")
+        st.write(f"File Size: {len(audio_file.getvalue()) / (1024 * 1024):.2f} MB")
         
         st.audio(audio_file, format="audio/wav")
 
