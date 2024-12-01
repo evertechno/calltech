@@ -2,13 +2,10 @@ import streamlit as st
 import whisper
 import io
 import logging
-import google.generativeai as genai  # Gemini API for generative AI tasks
+from pydub import AudioSegment
 
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
-
-# Configure the Gemini API (Gemini model)
-genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])  # Securely load your API key
 
 # Load the Whisper model (choose small, medium, or large depending on your needs)
 model = whisper.load_model("base")  # You can use "small", "medium", or "large" models for better accuracy
@@ -26,18 +23,21 @@ if audio_file is not None:
     st.write(f"File Size: {len(audio_file.getvalue())} bytes")
     st.audio(audio_file, format="audio/wav")
 
+    # Function to convert audio to WAV format using pydub (without ffmpeg)
+    def convert_audio_to_wav(file):
+        audio = AudioSegment.from_file(file)
+        wav_file_path = "converted_audio.wav"
+        audio.export(wav_file_path, format="wav")
+        return wav_file_path
+
     # Function to transcribe the audio using Whisper
     def transcribe_audio(file):
-        # Convert audio file to bytes
-        audio_bytes = file.read()
-
-        # Save the file temporarily for Whisper processing
-        with open("temp_audio_file", "wb") as temp_file:
-            temp_file.write(audio_bytes)
+        # Convert audio file to WAV format
+        wav_file = convert_audio_to_wav(file)
 
         try:
             # Use Whisper to transcribe the audio file
-            result = model.transcribe("temp_audio_file")
+            result = model.transcribe(wav_file)
 
             # Get the transcription text
             transcription = result["text"]
