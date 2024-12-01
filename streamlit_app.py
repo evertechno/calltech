@@ -2,6 +2,10 @@ import streamlit as st
 import google.generativeai as genai
 from google.cloud import speech_v1p1beta1 as speech
 import io
+import logging
+
+# Configure logging for debugging
+logging.basicConfig(level=logging.DEBUG)
 
 # Configure the API key securely from Streamlit's secrets
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -16,7 +20,11 @@ st.write("Record and analyze customer support calls. Get transcription and feedb
 # Audio file upload for customer support call
 audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav", "mp3"])
 
+# Debugging: Print file details
 if audio_file is not None:
+    st.write(f"Audio File Name: {audio_file.name}")
+    st.write(f"File Size: {len(audio_file.getvalue())} bytes")
+
     st.audio(audio_file, format="audio/wav")
 
     # Function to transcribe the audio using Google Speech-to-Text
@@ -26,32 +34,46 @@ if audio_file is not None:
 
         # Prepare the audio input for Speech-to-Text
         audio = speech.RecognitionAudio(content=audio_bytes)
+        
+        # Attempt to determine the correct encoding based on the file type
+        encoding = speech.RecognitionConfig.AudioEncoding.LINEAR16  # Default encoding
+        if file.name.endswith("mp3"):
+            encoding = speech.RecognitionConfig.AudioEncoding.MP3
+        elif file.name.endswith("wav"):
+            encoding = speech.RecognitionConfig.AudioEncoding.LINEAR16
+
         config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+            encoding=encoding,
             sample_rate_hertz=16000,  # Ensure this matches the uploaded file's sample rate
             language_code="en-US",
         )
 
-        # Perform the transcription
-        response = client.recognize(config=config, audio=audio)
+        try:
+            # Perform the transcription
+            response = client.recognize(config=config, audio=audio)
 
-        # Extract the transcription from the response
-        transcription = ""
-        for result in response.results:
-            transcription += result.alternatives[0].transcript + "\n"
+            # Extract the transcription from the response
+            transcription = ""
+            for result in response.results:
+                transcription += result.alternatives[0].transcript + "\n"
 
-        return transcription
+            return transcription
+        except Exception as e:
+            st.error(f"Error during transcription: {e}")
+            logging.error(f"Error during transcription: {e}")
+            return None
 
     # Transcribe the uploaded audio
     if st.button("Transcribe Call"):
-        try:
+        with st.spinner("Transcribing..."):
             transcription = transcribe_audio(audio_file)
-            st.write("Transcription:")
-            st.write(transcription)
-            # Save the transcription to session state for later use
-            st.session_state.transcription = transcription
-        except Exception as e:
-            st.error(f"Error during transcription: {e}")
+            if transcription:
+                st.write("Transcription:")
+                st.write(transcription)
+                # Save the transcription to session state for later use
+                st.session_state.transcription = transcription
+            else:
+                st.warning("Could not transcribe the audio.")
 
     # Analyze the feedback for sentiment (feedback analysis)
     if st.button("Analyze Feedback"):
@@ -67,6 +89,7 @@ if audio_file is not None:
                 st.write(response.text)
             except Exception as e:
                 st.error(f"Error during feedback analysis: {e}")
+                logging.error(f"Error during feedback analysis: {e}")
         else:
             st.warning("Please transcribe a call first.")
 
