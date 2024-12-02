@@ -19,7 +19,7 @@ st.write("Record and analyze customer support calls. Get transcription and feedb
 # Limit file size to 200MB and allow multiple formats
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
 
-# Audio file upload for customer support call (allowing WAV, MP3, FLAC, AIFF, MP4, and MP4A)
+# Audio file upload for customer support call (allowing WAV, MP3, FLAC, AIFF, MP4, MP4A)
 audio_file = st.file_uploader("Upload an audio file of the customer support call", 
                               type=["wav", "mp3", "flac", "aiff", "mp4", "mp4a"])
 
