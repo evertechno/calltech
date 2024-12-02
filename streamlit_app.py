@@ -1,6 +1,5 @@
 import streamlit as st
 import speech_recognition as sr
-from pydub import AudioSegment
 import io
 import logging
 import google.generativeai as genai
@@ -16,13 +15,13 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 st.title("Customer Support Call Analysis")
 st.write("Record and analyze customer support calls. Get transcription and feedback analysis.")
 
-# Limit file size to 200MB and allow only WAV format
+# Limit file size to 200MB and allow multiple formats
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
 
-# Audio file upload for customer support call (only WAV files allowed)
+# Audio file upload for customer support call (allowing WAV, MP3, FLAC, AIFF)
 audio_file = st.file_uploader("Upload an audio file of the customer support call", type=["wav", "mp3", "flac", "aiff"])
 
-# Ensure that only WAV files are allowed and check for file size
+# Ensure that only audio files are allowed and check for file size
 if audio_file is not None:
     # Check if the file is too large
     if len(audio_file.getvalue()) > MAX_FILE_SIZE:
@@ -33,31 +32,11 @@ if audio_file is not None:
         
         st.audio(audio_file, format="audio/wav")
 
-        # Function to check and convert to WAV if necessary
-        def convert_to_wav(file):
-            try:
-                # Load the uploaded file into pydub
-                audio = AudioSegment.from_file(file)
-                # Export the audio as WAV
-                wav_file = io.BytesIO()
-                audio.export(wav_file, format="wav")
-                wav_file.seek(0)
-                return wav_file
-            except Exception as e:
-                st.error(f"Error converting file to WAV: {e}")
-                return None
-
         # Function to transcribe the audio using SpeechRecognition
         def transcribe_audio(file):
             recognizer = sr.Recognizer()
 
-            # Convert the uploaded audio file to WAV if it's not already WAV
-            if file.type != "audio/wav":
-                file = convert_to_wav(file)
-                if not file:
-                    return None
-
-            # Convert the WAV file into an audio source
+            # Convert the uploaded audio file into an audio source
             with io.BytesIO(file.read()) as audio_file_io:
                 with sr.AudioFile(audio_file_io) as source:
                     audio = recognizer.record(source)
