@@ -3,6 +3,7 @@ import speech_recognition as sr
 import io
 import logging
 import google.generativeai as genai
+import time
 
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
@@ -40,24 +41,49 @@ if audio_file is not None:
 
             # Convert the WAV file into an audio source
             with io.BytesIO(file.read()) as audio_file_io:
+                st.write(f"Audio File Size: {len(audio_file_io.getvalue())} bytes")
                 with sr.AudioFile(audio_file_io) as source:
                     audio = recognizer.record(source)
 
-            try:
-                # Use Google Web Speech API to transcribe audio
-                transcription = recognizer.recognize_google(audio)
-                return transcription
-            except sr.UnknownValueError:
-                st.error("Google Speech Recognition could not understand the audio")
-                return None
-            except sr.RequestError as e:
-                st.error(f"Could not request results from Google Speech Recognition service; {e}")
-                return None
+            retries = 3
+            for i in range(retries):
+                try:
+                    # Try to use Google Web Speech API to transcribe audio
+                    transcription = recognizer.recognize_google(audio)
+                    return transcription
+                except sr.UnknownValueError:
+                    st.error("Google Speech Recognition could not understand the audio")
+                    return None
+                except sr.RequestError as e:
+                    if i < retries - 1:
+                        time.sleep(2 ** i)  # Exponential backoff
+                    else:
+                        st.error(f"Could not request results from Google Speech Recognition service; {e}")
+                        return None
+            return None
+
+        # Fallback to Sphinx if Google API fails
+        def transcribe_with_fallback(file):
+            transcription = transcribe_audio(file)
+            if transcription is None:
+                st.warning("Google Speech Recognition failed. Trying Sphinx (local)...")
+                recognizer = sr.Recognizer()
+                with io.BytesIO(file.read()) as audio_file_io:
+                    with sr.AudioFile(audio_file_io) as source:
+                        audio = recognizer.record(source)
+                try:
+                    transcription = recognizer.recognize_sphinx(audio)
+                    return transcription
+                except sr.UnknownValueError:
+                    st.error("Sphinx could not understand the audio")
+                except sr.RequestError as e:
+                    st.error(f"Sphinx request failed; {e}")
+            return transcription
 
         # Transcribe the uploaded audio
         if st.button("Transcribe Call"):
             with st.spinner("Transcribing..."):
-                transcription = transcribe_audio(audio_file)
+                transcription = transcribe_with_fallback(audio_file)
                 if transcription:
                     st.write("Transcription:")
                     st.write(transcription)
