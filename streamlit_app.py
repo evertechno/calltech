@@ -39,10 +39,14 @@ if audio_file is not None:
             try:
                 # Check file extension
                 file_extension = file.name.split('.')[-1].lower()
-                if file_extension == 'mp4a' or file_extension == 'mp4':
+                st.write(f"File extension detected: {file_extension}")
+
+                # Only proceed if the file is mp4a or mp4
+                if file_extension in ['mp4a', 'mp4']:
+                    st.write(f"Converting {file_extension} to WAV...")
                     # Load the uploaded file using pydub (it can handle .mp4a files as well)
                     audio = AudioSegment.from_file(file)
-                    
+
                     # Export the audio as WAV format
                     wav_file = io.BytesIO()
                     audio.export(wav_file, format="wav")
