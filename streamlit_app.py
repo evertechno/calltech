@@ -19,7 +19,7 @@ st.write("Record and analyze customer support calls. Get transcription and feedb
 # Limit file size to 200MB and allow multiple formats
 MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
 
-# Audio file upload for customer support call (allowing WAV, MP3, FLAC, AIFF, MP4A)
+# Audio file upload for customer support call (allowing WAV, MP3, FLAC, AIFF, MP4, and MP4A)
 audio_file = st.file_uploader("Upload an audio file of the customer support call", 
                               type=["wav", "mp3", "flac", "aiff", "mp4", "mp4a"])
 
@@ -37,15 +37,21 @@ if audio_file is not None:
         # Function to convert MP4A (or other formats) to WAV using pydub
         def convert_to_wav(file):
             try:
-                # Load the uploaded file using pydub
-                audio = AudioSegment.from_file(file)
-                
-                # Export the audio as WAV format
-                wav_file = io.BytesIO()
-                audio.export(wav_file, format="wav")
-                wav_file.seek(0)
-                st.write("File has been converted to valid WAV format.")
-                return wav_file
+                # Check file extension
+                file_extension = file.name.split('.')[-1].lower()
+                if file_extension == 'mp4a' or file_extension == 'mp4':
+                    # Load the uploaded file using pydub (it can handle .mp4a files as well)
+                    audio = AudioSegment.from_file(file)
+                    
+                    # Export the audio as WAV format
+                    wav_file = io.BytesIO()
+                    audio.export(wav_file, format="wav")
+                    wav_file.seek(0)
+                    st.write("File has been converted to valid WAV format.")
+                    return wav_file
+                else:
+                    st.error(f"Unsupported file extension: {file_extension}")
+                    return None
             except Exception as e:
                 st.error(f"Error converting file to WAV: {e}")
                 return None
